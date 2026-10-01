@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Holofoto</title>
+<style>
+:root{--bg:#081019;--pad:#0d1b2a;--line:#1c3550;--ink:#e8f4ff;--mute:#86a2bd;--glow:#46e4ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#menu{position:relative;z-index:1;max-width:480px;margin:0 auto;padding:28px 18px 36px}
+h1{font-size:1.9rem;font-weight:700;letter-spacing:-.02em;margin:0 0 6px}
+.sub{color:var(--mute);margin:0 0 20px}
+.stage{position:relative;border:1px solid var(--line);border-radius:18px;background:
+ radial-gradient(ellipse at 50% 100%,#46e4ff33,transparent 60%),var(--pad);
+ min-height:320px;display:flex;align-items:flex-end;justify-content:center;padding:16px;overflow:hidden}
+.stage::after{content:"";position:absolute;left:20%;right:20%;bottom:10px;height:10px;border-radius:50%;background:radial-gradient(#46e4ff88,transparent 70%)}
+#prev{display:none;max-width:100%;max-height:420px;object-fit:contain;position:relative;z-index:1}
+.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--mute);text-align:center;padding:24px}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:12px;background:var(--glow);color:#032430;font:700 1rem inherit;font-family:inherit;cursor:pointer;margin-top:14px;text-align:center}
+.btn.alt{background:transparent;color:var(--glow);border:1.5px solid var(--glow)}
+.btn:disabled{opacity:.35;cursor:default}
+.btn:focus-visible,input:focus-visible+span{outline:3px solid #fff;outline-offset:2px}
+input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:16px;color:var(--ink)}
+.chk input{margin-top:4px;accent-color:var(--glow);width:18px;height:18px;flex:none}
+.mute{color:var(--mute);font-size:.88rem;margin:10px 0 0}
+#hud{display:none;position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;color:var(--ink)}
+#tip{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);background:#000b;padding:8px 14px;border-radius:20px;font-size:.9rem;white-space:nowrap}
+#panel{pointer-events:auto;position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);background:#081019e8;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+#panel label{display:flex;align-items:center;gap:10px;font-size:.9rem;margin-bottom:8px}
+#panel input[type=range]{flex:1;accent-color:var(--glow)}
+#panel .btn{margin-top:4px;padding:10px}
+</style>
+</head>
+<body>
+<main id="menu">
+  <h1>Holofoto</h1>
+  <p class="sub">Convierte una foto de cuerpo entero en una figura que puedes colocar en tu habitación con la cámara.</p>
+
+  <div class="stage">
+    <div class="empty" id="empty">Aquí verás el recorte de tu foto</div>
+    <canvas id="prev"></canvas>
+  </div>
+
+  <label class="btn alt" for="pic" style="cursor:pointer"><input id="pic" type="file" accept="image/*"><span>Elegir foto</span></label>
+  <p class="mute" id="st">Funciona mejor con una persona de pie, de frente y con fondo liso.</p>
+
+  <label class="chk"><input id="ok" type="checkbox"><span>La foto es mía o la persona retratada ha dado su consentimiento.</span></label>
+  <button class="btn" id="go" disabled>Ver en RA</button>
+  <p class="mute" id="xr"></p>
+  <p class="mute">La foto se procesa en tu dispositivo y no se sube a ningún servidor.</p>
+</main>
+
+<div id="hud">
+  <div id="tip">Mueve el móvil despacio para detectar el suelo</div>
+  <div id="panel">
+    <label>Altura <b id="hv">1.70 m</b><input id="h" type="range" min="0.5" max="2.2" step="0.01" value="1.7"></label>
+    <label>Holograma<input id="ho" type="range" min="0" max="1" step="0.01" value="0.7"></label>
+    <button class="btn alt" id="exit">Salir de la RA</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+const $=id=>document.getElementById(id);
+const ss=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)};
+const say=m=>$('st').textContent=m;
+const tip=m=>{if($('tip').textContent!==m)$('tip').textContent=m};
+let cutout=null,aspect=.5,xrOK=false,seg=null;
+let renderer,scene,camera,reticle,fig,mesh,mat,shadow,hitSrc=null,cp;
+
+function ready(){$('go').disabled=!(cutout&&$('ok').checked&&xrOK)}
+$('ok').onchange=ready;
+(async()=>{
+  try{xrOK=!!(navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar'))}catch(e){}
+  if(!xrOK)$('xr').textContent='Este navegador no ofrece RA WebXR. Abre la página en Chrome para Android con Google Play Services para RA instalado.';
+  ready();
+})();
+
+/* ---------- Recorte de la persona (todo en el dispositivo) ---------- */
+async function aiMask(c){
+  const {FilesetResolver,ImageSegmenter}=await import(MP+'/vision_bundle.mjs');
+  if(!seg){
+    const fs=await FilesetResolver.forVisionTasks(MP+'/wasm');
+    seg=await ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetPath:MODEL},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
+  }
+  const r=seg.segment(c);
+  const m=r.confidenceMasks[0].getAsFloat32Array(); /* canal 0 = fondo */
+  if(m.length!==c.width*c.height)throw new Error('mask');
+  const a=new Float32Array(m.length);
+  for(let i=0;i<m.length;i++)a[i]=ss(.3,.7,1-m[i]);
+  r.confidenceMasks.forEach(k=>k.close&&k.close());
+  return a;
+}
+function keyMask(p,w,h){ /* respaldo sin IA: quita el color de fondo de las esquinas */
+  let r=0,g=0,b=0,n=0;
+  for(const [cx,cy] of [[0,0],[w-12,0],[0,h-12],[w-12,h-12]])
+    for(let y=0;y<12;y++)for(let x=0;x<12;x++){const i=((cy+y)*w+cx+x)*4;r+=p[i];g+=p[i+1];b+=p[i+2];n++}
+  r/=n;g/=n;b/=n;
+  const a=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++)a[i]=ss(.08,.22,Math.hypot(p[i*4]-r,p[i*4+1]-g,p[i*4+2]-b)/441);
+  return a;
+}
+$('pic').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  cutout=null;ready();say('Quitando el fondo…');
+  try{
+    const img=new Image();img.src=URL.createObjectURL(f);await img.decode();
+    const s=Math.min(1,768/Math.max(img.width,img.height));
+    const w=Math.round(img.width*s),h=Math.round(img.height*s);
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,w,h);
+    const d=x.getImageData(0,0,w,h),px=d.data;
+    let a,mode;
+    try{a=await aiMask(c);mode='recorte con segmentación en el dispositivo'}
+    catch(err){a=keyMask(px,w,h);mode='recorte por color de fondo, sin IA (mejor con fondo liso)'}
+    let x0=w,y0=h,x1=0,y1=0;
+    for(let i=0;i<w*h;i++){
+      px[i*4+3]=a[i]*255;
+      if(a[i]>.1){const X=i%w,Y=(i/w)|0;if(X<x0)x0=X;if(X>x1)x1=X;if(Y<y0)y0=Y;if(Y>y1)y1=Y}
+    }
+    if(x1<=x0||y1<=y0){say('No se detectó a nadie. Prueba con otra foto.');return}
+    x.putImageData(d,0,0);
+    const bw=x1-x0+1,bh=y1-y0+1;
+    const o=document.createElement('canvas');o.width=bw;o.height=bh;
+    o.getContext('2d').drawImage(c,x0,y0,bw,bh,0,0,bw,bh);
+    cutout=o;aspect=bw/bh;
+    const p=$('prev');p.width=bw;p.height=bh;p.getContext('2d').drawImage(o,0,0);
+    p.style.display='block';$('empty').style.display='none';
+    say('Listo: '+mode+'.');
+  }catch(err){say('No se pudo leer la imagen. Prueba con otra.')}
+  ready();
+};
+
+/* ---------- Escena RA ---------- */
+function blobTex(){
+  const c=document.createElement('canvas');c.width=c.height=64;
+  const g=c.getContext('2d'),r=g.createRadialGradient(32,32,2,32,32,32);
+  r.addColorStop(0,'rgba(0,0,0,.55)');r.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=r;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);
+}
+function setup(){
+  if(renderer)return;
+  cp=new THREE.Vector3();
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(devicePixelRatio);renderer.setSize(innerWidth,innerHeight);
+  renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType('local');
+  Object.assign(renderer.domElement.style,{position:'fixed',top:0,left:0,zIndex:0,pointerEvents:'none'});
+  document.body.appendChild(renderer.domElement);
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.01,20);
+  reticle=new THREE.Mesh(new THREE.RingGeometry(.12,.15,32).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x46e4ff}));
+  reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
+  const ctl=renderer.xr.getController(0);
+  ctl.addEventListener('select',()=>{
+    if(!reticle.visible)return;
+    fig.position.setFromMatrixPosition(reticle.matrix);fig.visible=true;
+    tip('Toca otro punto para moverla');
+  });
+  scene.add(ctl);
+  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+}
+function applyH(){
+  const h=+$('h').value,w=Math.max(.45,aspect*h*1.1);
+  mesh.scale.setScalar(h);shadow.scale.set(w,w*.6,1);
+}
+function makeFigure(){
+  if(fig)scene.remove(fig);
+  const tex=new THREE.CanvasTexture(cutout);tex.anisotropy=4;
+  mat=new THREE.ShaderMaterial({
+    uniforms:{map:{value:tex},uT:{value:0},uHolo:{value:+$('ho').value}},
+    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'uniform sampler2D map;uniform float uT,uHolo;varying vec2 vUv;'+
+      'void main(){vec4 t=texture2D(map,vUv);float l=dot(t.rgb,vec3(.299,.587,.114));'+
+      'vec3 holo=vec3(.18,.88,1.)*(.35+.9*l);'+
+      'float scan=.82+.18*sin(vUv.y*260.-uT*3.);float fl=.94+.06*sin(uT*41.);'+
+      'gl_FragColor=vec4(mix(t.rgb,holo*scan*fl,uHolo),t.a*mix(1.,.72,uHolo));}',
+    transparent:true,side:THREE.DoubleSide,depthWrite:false
+  });
+  const geo=new THREE.PlaneGeometry(aspect,1);geo.translate(0,.5,0);
+  mesh=new THREE.Mesh(geo,mat);
+  shadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:blobTex(),transparent:true,depthWrite:false}));
+  shadow.rotation.x=-Math.PI/2;shadow.position.y=.003;
+  fig=new THREE.Group();fig.add(shadow,mesh);fig.visible=false;scene.add(fig);
+  applyH();
+}
+function frame(t,f){
+  mat.uniforms.uT.value=performance.now()/1000;
+  if(f&&hitSrc){
+    const r=f.getHitTestResults(hitSrc);
+    if(r.length){
+      const p=r[0].getPose(renderer.xr.getReferenceSpace());
+      if(p){reticle.visible=true;reticle.matrix.fromArray(p.transform.matrix)}
+    }else reticle.visible=false;
+    if(reticle.visible&&!fig.visible)tip('Toca para colocar la figura');
+  }
+  if(fig.visible){ /* siempre de cara al usuario, apoyada en el suelo */
+    renderer.xr.getCamera(camera).getWorldPosition(cp);
+    mesh.rotation.y=Math.atan2(cp.x-fig.position.x,cp.z-fig.position.z);
+  }
+  renderer.render(scene,camera);
+}
+function endAR(){
+  renderer.setAnimationLoop(null);hitSrc=null;reticle.visible=false;
+  $('hud').style.display='none';$('menu').style.display='block';
+  tip('Mueve el móvil despacio para detectar el suelo');
+}
+$('go').onclick=async()=>{
+  setup();makeFigure();
+  $('hud').style.display='block';
+  try{
+    const s=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:$('hud')}});
+    await renderer.xr.setSession(s);
+    s.addEventListener('end',endAR);
+    hitSrc=await s.requestHitTestSource({space:await s.requestReferenceSpace('viewer')});
+    $('menu').style.display='none';
+    renderer.setAnimationLoop(frame);
+  }catch(e){
+    $('hud').style.display='none';
+    say('No se pudo iniciar la RA: '+(e.message||e)+'. Comprueba que usas HTTPS y Chrome.');
+  }
+};
+$('h').oninput=()=>{$('hv').textContent=(+$('h').value).toFixed(2)+' m';if(mesh)applyH()};
+$('ho').oninput=()=>{if(mat)mat.uniforms.uHolo.value=+$('ho').value};
+$('panel').addEventListener('beforexrselect',e=>e.preventDefault());
+$('exit').onclick=()=>{const s=renderer&&renderer.xr.getSession();if(s)s.end()};
+</script>
+</body>
+</html>
