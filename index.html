@@ -11,24 +11,24 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-ap
 #menu{position:relative;z-index:1;max-width:480px;margin:0 auto;padding:28px 18px 36px}
 h1{font-size:1.9rem;font-weight:700;letter-spacing:-.02em;margin:0 0 6px}
 .sub{color:var(--mute);margin:0 0 20px}
-.stage{position:relative;border:1px solid var(--line);border-radius:18px;background:
- radial-gradient(ellipse at 50% 100%,#46e4ff33,transparent 60%),var(--pad);
- min-height:320px;display:flex;align-items:flex-end;justify-content:center;padding:16px;overflow:hidden}
-.stage::after{content:"";position:absolute;left:20%;right:20%;bottom:10px;height:10px;border-radius:50%;background:radial-gradient(#46e4ff88,transparent 70%)}
-#prev{display:none;max-width:100%;max-height:420px;object-fit:contain;position:relative;z-index:1}
+.stage{position:relative;border:1px solid var(--line);border-radius:18px;background:radial-gradient(ellipse at 50% 100%,#46e4ff33,transparent 60%),var(--pad);min-height:320px;display:flex;align-items:flex-end;justify-content:center;padding:16px;overflow:hidden}
+#prev,#v{display:none;max-width:100%;max-height:420px;object-fit:contain;position:relative;z-index:1}
 .empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--mute);text-align:center;padding:24px}
-.btn{display:block;width:100%;padding:14px;border:0;border-radius:12px;background:var(--glow);color:#032430;font:700 1rem inherit;font-family:inherit;cursor:pointer;margin-top:14px;text-align:center}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:12px;background:var(--glow);color:#032430;font:700 1rem system-ui,sans-serif;cursor:pointer;margin-top:14px;text-align:center}
 .btn.alt{background:transparent;color:var(--glow);border:1.5px solid var(--glow)}
 .btn:disabled{opacity:.35;cursor:default}
 .btn:focus-visible,input:focus-visible+span{outline:3px solid #fff;outline-offset:2px}
 input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
-.chk{display:flex;gap:10px;align-items:flex-start;margin-top:16px;color:var(--ink)}
+.row,.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fld{display:grid;gap:6px;margin-top:14px;font-size:.9rem;color:var(--mute)}
+select,textarea{background:var(--pad);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:16px}
 .chk input{margin-top:4px;accent-color:var(--glow);width:18px;height:18px;flex:none}
 .mute{color:var(--mute);font-size:.88rem;margin:10px 0 0}
 #hud{display:none;position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;color:var(--ink)}
 #tip{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);background:#000b;padding:8px 14px;border-radius:20px;font-size:.9rem;white-space:nowrap}
 #panel{pointer-events:auto;position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);background:#081019e8;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
-#panel label{display:flex;align-items:center;gap:10px;font-size:.9rem;margin-bottom:8px}
+#panel label{display:flex;align-items:center;gap:10px;font-size:.9rem;margin-bottom:6px}
 #panel input[type=range]{flex:1;accent-color:var(--glow)}
 #panel .btn{margin-top:4px;padding:10px}
 </style>
@@ -36,20 +36,31 @@ input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
 <body>
 <main id="menu">
   <h1>Holofoto</h1>
-  <p class="sub">Convierte una foto de cuerpo entero en una figura que puedes colocar en tu habitación con la cámara.</p>
+  <p class="sub">Convierte una foto o un vídeo de cuerpo entero en una figura que puedes colocar en tu habitación con la cámara.</p>
 
   <div class="stage">
-    <div class="empty" id="empty">Aquí verás el recorte de tu foto</div>
+    <div class="empty" id="empty">Aquí verás tu foto o vídeo</div>
     <canvas id="prev"></canvas>
+    <video id="v" playsinline loop muted controls></video>
   </div>
 
-  <label class="btn alt" for="pic" style="cursor:pointer"><input id="pic" type="file" accept="image/*"><span>Elegir foto</span></label>
+  <div class="row">
+    <label class="btn alt"><input id="pic" type="file" accept="image/*"><span>Elegir foto</span></label>
+    <label class="btn alt"><input id="vid" type="file" accept="video/*"><span>Elegir vídeo</span></label>
+  </div>
   <p class="mute" id="st">Funciona mejor con una persona de pie, de frente y con fondo liso.</p>
 
-  <label class="chk"><input id="ok" type="checkbox"><span>La foto es mía o la persona retratada ha dado su consentimiento.</span></label>
+  <label class="fld">Transparencia del vídeo
+    <select id="vm"><option value="1">Fondo verde (chroma)</option><option value="2">Color y alfa lado a lado</option></select>
+  </label>
+  <label class="fld">Frase para que hable (solo con foto)
+    <textarea id="tx" rows="2">Hola, soy tu holograma.</textarea>
+  </label>
+
+  <label class="chk"><input id="ok" type="checkbox"><span>La foto o el vídeo son míos, o la persona retratada ha dado su consentimiento.</span></label>
   <button class="btn" id="go" disabled>Ver en RA</button>
   <p class="mute" id="xr"></p>
-  <p class="mute">La foto se procesa en tu dispositivo y no se sube a ningún servidor.</p>
+  <p class="mute">Todo se procesa en tu dispositivo. Nada se sube a ningún servidor.</p>
 </main>
 
 <div id="hud">
@@ -57,22 +68,25 @@ input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
   <div id="panel">
     <label>Altura <b id="hv">1.70 m</b><input id="h" type="range" min="0.5" max="2.2" step="0.01" value="1.7"></label>
     <label>Holograma<input id="ho" type="range" min="0" max="1" step="0.01" value="0.7"></label>
-    <button class="btn alt" id="exit">Salir de la RA</button>
+    <label>Vida<input id="lf" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+    <div class="row2"><button class="btn alt" id="say">Hablar</button><button class="btn alt" id="exit">Salir</button></div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-const MODEL='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+const SEG='https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+const FACE='https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
 const $=id=>document.getElementById(id);
 const ss=(a,b,x)=>{x=Math.min(1,Math.max(0,(x-a)/(b-a)));return x*x*(3-2*x)};
 const say=m=>$('st').textContent=m;
 const tip=m=>{if($('tip').textContent!==m)$('tip').textContent=m};
-let cutout=null,aspect=.5,xrOK=false,seg=null;
-let renderer,scene,camera,reticle,fig,mesh,mat,shadow,hitSrc=null,cp;
+const V=$('v');
+let src='img',cutout=null,aspect=.5,vidOK=false,xrOK=false,mouth=null,seg=null,fl=null,VT=null;
+let renderer,scene,camera,reticle,fig,mesh,mat,shadow,hitSrc=null,cp,talk=0,boost=0,mo=0;
 
-function ready(){$('go').disabled=!(cutout&&$('ok').checked&&xrOK)}
+function ready(){$('go').disabled=!((src==='vid'?vidOK:!!cutout)&&$('ok').checked&&xrOK)}
 $('ok').onchange=ready;
 (async()=>{
   try{xrOK=!!(navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar'))}catch(e){}
@@ -80,18 +94,18 @@ $('ok').onchange=ready;
   ready();
 })();
 
-/* ---------- Recorte de la persona (todo en el dispositivo) ---------- */
+/* ---------- Modelos en el dispositivo ---------- */
+async function vision(){
+  if(!VT){const m=await import(MP+'/vision_bundle.mjs');VT={m,fs:await m.FilesetResolver.forVisionTasks(MP+'/wasm')}}
+  return VT;
+}
 async function aiMask(c){
-  const {FilesetResolver,ImageSegmenter}=await import(MP+'/vision_bundle.mjs');
-  if(!seg){
-    const fs=await FilesetResolver.forVisionTasks(MP+'/wasm');
-    seg=await ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetPath:MODEL},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
-  }
-  const r=seg.segment(c);
-  const m=r.confidenceMasks[0].getAsFloat32Array(); /* canal 0 = fondo */
-  if(m.length!==c.width*c.height)throw new Error('mask');
-  const a=new Float32Array(m.length);
-  for(let i=0;i<m.length;i++)a[i]=ss(.3,.7,1-m[i]);
+  const {m,fs}=await vision();
+  seg=seg||await m.ImageSegmenter.createFromOptions(fs,{baseOptions:{modelAssetPath:SEG},runningMode:'IMAGE',outputConfidenceMasks:true,outputCategoryMask:false});
+  const r=seg.segment(c),b=r.confidenceMasks[0].getAsFloat32Array(); /* canal 0 = fondo */
+  if(b.length!==c.width*c.height)throw new Error('mask');
+  const a=new Float32Array(b.length);
+  for(let i=0;i<b.length;i++)a[i]=ss(.3,.7,1-b[i]);
   r.confidenceMasks.forEach(k=>k.close&&k.close());
   return a;
 }
@@ -104,9 +118,20 @@ function keyMask(p,w,h){ /* respaldo sin IA: quita el color de fondo de las esqu
   for(let i=0;i<w*h;i++)a[i]=ss(.08,.22,Math.hypot(p[i*4]-r,p[i*4+1]-g,p[i*4+2]-b)/441);
   return a;
 }
+async function findMouth(c,x0,y0,bw,bh){ /* busca la boca en el 30 % superior de la figura */
+  const {m,fs}=await vision();
+  fl=fl||await m.FaceLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:FACE},runningMode:'IMAGE',numFaces:1});
+  const ch=Math.round(bh*.3),hc=document.createElement('canvas');hc.width=bw;hc.height=ch;
+  hc.getContext('2d').drawImage(c,x0,y0,bw,ch,0,0,bw,ch);
+  const L=fl.detect(hc).faceLandmarks[0];if(!L)return null;
+  return{u:(L[13].x+L[14].x)/2,v:1-((L[13].y+L[14].y)/2)*ch/bh,
+    mw:Math.hypot((L[291].x-L[61].x)*bw,(L[291].y-L[61].y)*ch)/2/bh};
+}
+
+/* ---------- Carga de foto ---------- */
 $('pic').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
-  cutout=null;ready();say('Quitando el fondo…');
+  src='img';cutout=null;mouth=null;V.pause();V.style.display='none';ready();say('Quitando el fondo…');
   try{
     const img=new Image();img.src=URL.createObjectURL(f);await img.decode();
     const s=Math.min(1,768/Math.max(img.width,img.height));
@@ -123,15 +148,28 @@ $('pic').onchange=async e=>{
       if(a[i]>.1){const X=i%w,Y=(i/w)|0;if(X<x0)x0=X;if(X>x1)x1=X;if(Y<y0)y0=Y;if(Y>y1)y1=Y}
     }
     if(x1<=x0||y1<=y0){say('No se detectó a nadie. Prueba con otra foto.');return}
-    x.putImageData(d,0,0);
     const bw=x1-x0+1,bh=y1-y0+1;
+    try{mouth=await findMouth(c,x0,y0,bw,bh)}catch(err){mouth=null}
+    x.putImageData(d,0,0);
     const o=document.createElement('canvas');o.width=bw;o.height=bh;
     o.getContext('2d').drawImage(c,x0,y0,bw,bh,0,0,bw,bh);
     cutout=o;aspect=bw/bh;
     const p=$('prev');p.width=bw;p.height=bh;p.getContext('2d').drawImage(o,0,0);
     p.style.display='block';$('empty').style.display='none';
-    say('Listo: '+mode+'.');
+    say('Listo: '+mode+'. '+(mouth?'Boca detectada: podrá hablar.':'No se detectó la cara: hablará solo con voz y brillo.'));
   }catch(err){say('No se pudo leer la imagen. Prueba con otra.')}
+  ready();
+};
+
+/* ---------- Carga de vídeo ---------- */
+$('vid').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  vidOK=false;ready();V.src=URL.createObjectURL(f);
+  try{await new Promise((ok,ko)=>{V.onloadedmetadata=ok;V.onerror=ko})}
+  catch(err){say('No se pudo leer el vídeo. Prueba con un MP4 o WebM.');return}
+  src='vid';vidOK=true;
+  V.style.display='block';$('prev').style.display='none';$('empty').style.display='none';
+  say('Vídeo listo. Elige el tipo de transparencia y ajusta la altura en la RA para que la persona mida lo que debe.');
   ready();
 };
 
@@ -167,20 +205,36 @@ function applyH(){
   const h=+$('h').value,w=Math.max(.45,aspect*h*1.1);
   mesh.scale.setScalar(h);shadow.scale.set(w,w*.6,1);
 }
+const VS='uniform float uT,uLife;varying vec2 vUv;'+
+ 'void main(){vUv=uv;vec3 p=position;'+
+ 'p.x+=sin(uT*.9)*.015*uLife*uv.y;p.y*=1.+.012*uLife*sin(uT*1.7);'+ /* balanceo y respiración */
+ 'gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}';
+const FS='uniform sampler2D map;uniform float uT,uHolo,uMode,uMW,uMO,uAsp;uniform vec2 uMouth;varying vec2 vUv;'+
+ 'void main(){vec2 uv=vUv;bool m=uMW>0.&&uMO>.002;'+
+ 'if(m){vec2 p=(uv-uMouth)*vec2(uAsp,1.)/uMW;'+ /* mandíbula que baja */
+ 'float jaw=(1.-smoothstep(1.4,2.4,length(p)))*(1.-smoothstep(-.4,.1,p.y));uv.y+=jaw*uMO*uMW*.8;}'+
+ 'vec4 t;'+
+ 'if(uMode>1.5){t=texture2D(map,vec2(uv.x*.5,uv.y));t.a=texture2D(map,vec2(uv.x*.5+.5,uv.y)).r;}'+
+ 'else{t=texture2D(map,uv);if(uMode>.5){t.a=1.-smoothstep(.06,.22,t.g-max(t.r,t.b));t.g=min(t.g,max(t.r,t.b));}}'+
+ 'if(m){vec2 p=(vUv-uMouth)*vec2(uAsp,1.)/uMW;'+ /* interior de la boca */
+ 'float k=1.-smoothstep(.2,.55,length((p+vec2(0.,.4*uMO))*vec2(1.,2.4)));t.rgb=mix(t.rgb,vec3(.06,.01,.02),k*uMO*.9);}'+
+ 'float l=dot(t.rgb,vec3(.299,.587,.114));'+
+ 'vec3 holo=vec3(.18,.88,1.)*(.35+.9*l)*(1.+.3*uMO);'+
+ 'float scan=.82+.18*sin(vUv.y*260.-uT*3.);float fl=.94+.06*sin(uT*41.);'+
+ 'gl_FragColor=vec4(mix(t.rgb,holo*scan*fl,uHolo),t.a*mix(1.,.72,uHolo));}';
 function makeFigure(){
   if(fig)scene.remove(fig);
-  const tex=new THREE.CanvasTexture(cutout);tex.anisotropy=4;
+  const vid=src==='vid',pk=$('vm').value==='2';
+  if(vid)aspect=(V.videoWidth/(pk?2:1))/V.videoHeight;
+  const tex=vid?new THREE.VideoTexture(V):new THREE.CanvasTexture(cutout);
+  const mm=!vid&&mouth;
   mat=new THREE.ShaderMaterial({
-    uniforms:{map:{value:tex},uT:{value:0},uHolo:{value:+$('ho').value}},
-    vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:'uniform sampler2D map;uniform float uT,uHolo;varying vec2 vUv;'+
-      'void main(){vec4 t=texture2D(map,vUv);float l=dot(t.rgb,vec3(.299,.587,.114));'+
-      'vec3 holo=vec3(.18,.88,1.)*(.35+.9*l);'+
-      'float scan=.82+.18*sin(vUv.y*260.-uT*3.);float fl=.94+.06*sin(uT*41.);'+
-      'gl_FragColor=vec4(mix(t.rgb,holo*scan*fl,uHolo),t.a*mix(1.,.72,uHolo));}',
-    transparent:true,side:THREE.DoubleSide,depthWrite:false
+    uniforms:{map:{value:tex},uT:{value:0},uLife:{value:+$('lf').value},uHolo:{value:+$('ho').value},
+      uMode:{value:vid?(pk?2:1):0},uMouth:{value:new THREE.Vector2(mm?mouth.u:0,mm?mouth.v:0)},
+      uMW:{value:mm?mouth.mw:0},uMO:{value:0},uAsp:{value:aspect}},
+    vertexShader:VS,fragmentShader:FS,transparent:true,side:THREE.DoubleSide,depthWrite:false
   });
-  const geo=new THREE.PlaneGeometry(aspect,1);geo.translate(0,.5,0);
+  const geo=new THREE.PlaneGeometry(aspect,1,1,12);geo.translate(0,.5,0);
   mesh=new THREE.Mesh(geo,mat);
   shadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:blobTex(),transparent:true,depthWrite:false}));
   shadow.rotation.x=-Math.PI/2;shadow.position.y=.003;
@@ -188,7 +242,10 @@ function makeFigure(){
   applyH();
 }
 function frame(t,f){
-  mat.uniforms.uT.value=performance.now()/1000;
+  const n=performance.now()/1000;
+  mat.uniforms.uT.value=n;
+  let tg=talk?Math.max(0,.4+.35*Math.sin(n*16)+.25*Math.sin(n*6.7+1)):0; /* boca simulada */
+  boost*=.9;mo+=(Math.min(1,tg+boost)-mo)*.4;mat.uniforms.uMO.value=mo;
   if(f&&hitSrc){
     const r=f.getHitTestResults(hitSrc);
     if(r.length){
@@ -205,11 +262,14 @@ function frame(t,f){
 }
 function endAR(){
   renderer.setAnimationLoop(null);hitSrc=null;reticle.visible=false;
+  speechSynthesis.cancel();talk=0;mo=0;V.pause();
   $('hud').style.display='none';$('menu').style.display='block';
   tip('Mueve el móvil despacio para detectar el suelo');
 }
 $('go').onclick=async()=>{
   setup();makeFigure();
+  $('say').style.display=src==='img'?'block':'none';
+  if(src==='vid'){V.muted=false;V.play().catch(()=>{})} /* dentro del gesto del usuario */
   $('hud').style.display='block';
   try{
     const s=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:$('hud')}});
@@ -219,12 +279,19 @@ $('go').onclick=async()=>{
     $('menu').style.display='none';
     renderer.setAnimationLoop(frame);
   }catch(e){
-    $('hud').style.display='none';
+    V.pause();$('hud').style.display='none';
     say('No se pudo iniciar la RA: '+(e.message||e)+'. Comprueba que usas HTTPS y Chrome.');
   }
 };
+$('say').onclick=()=>{
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance($('tx').value||'Hola');
+  u.lang='es-ES';u.onend=u.onerror=()=>{talk=0};u.onboundary=()=>{boost=.5};
+  talk=1;speechSynthesis.speak(u);
+};
 $('h').oninput=()=>{$('hv').textContent=(+$('h').value).toFixed(2)+' m';if(mesh)applyH()};
 $('ho').oninput=()=>{if(mat)mat.uniforms.uHolo.value=+$('ho').value};
+$('lf').oninput=()=>{if(mat)mat.uniforms.uLife.value=+$('lf').value};
 $('panel').addEventListener('beforexrselect',e=>e.preventDefault());
 $('exit').onclick=()=>{const s=renderer&&renderer.xr.getSession();if(s)s.end()};
 </script>
